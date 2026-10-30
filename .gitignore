@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 运行产物：转写中间 JSON 与合并后的段落文件
+transcript.json
+blocks.txt
+
+# 交付产物：文字稿 txt（形如 2026-10-28 22-28_张三.txt）
+[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.txt
+
+# 编辑器
+.vscode/
+.idea/

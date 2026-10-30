@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>meeting-transcript · 腾讯会议文字稿整理技能</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0c11;
+    --panel: #11141c;
+    --panel-2: #161a24;
+    --border: rgba(255, 255, 255, 0.07);
+    --border-strong: rgba(255, 255, 255, 0.13);
+    --text: #e9edf5;
+    --muted: #8d96ab;
+    --dim: #5f6879;
+    --accent: #4e9dff;
+    --accent-soft: rgba(78, 157, 255, 0.12);
+    --green: #3ddc97;
+    --green-soft: rgba(61, 220, 151, 0.12);
+    --amber: #f2b544;
+    --radius: 14px;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* 顶部进度条 */
+  #progress {
+    position: fixed; top: 0; left: 0; height: 2px; width: 0;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+    z-index: 100; transition: width .1s linear;
+  }
+
+  /* 背景光晕 */
+  .glow {
+    position: fixed; border-radius: 50%; filter: blur(120px);
+    pointer-events: none; z-index: 0; opacity: .5;
+  }
+  .glow-1 { width: 520px; height: 520px; background: rgba(78,157,255,.18); top: -180px; left: -120px; }
+  .glow-2 { width: 460px; height: 460px; background: rgba(61,220,151,.10); top: 340px; right: -160px; }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 1; }
+
+  /* 导航 */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(14px);
+    background: rgba(10, 12, 17, 0.78);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    max-width: 1080px; margin: 0 auto; padding: 14px 28px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #2f6fd0);
+    display: grid; place-items: center; font-size: 13px; font-weight: 700;
+    color: #fff; flex-shrink: 0;
+  }
+  .nav-name { font-size: 14px; font-weight: 600; letter-spacing: .2px; }
+  .nav-name span { color: var(--dim); font-weight: 400; margin-left: 8px; font-family: var(--mono); font-size: 12px; }
+  .nav-links { margin-left: auto; display: flex; gap: 22px; font-size: 13px; }
+  .nav-links a { color: var(--muted); text-decoration: none; transition: color .2s; }
+  .nav-links a:hover { color: var(--text); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11.5px; font-family: var(--mono);
+    padding: 3px 9px; border-radius: 99px;
+    border: 1px solid var(--border-strong); color: var(--muted);
+    background: rgba(255,255,255,.02);
+  }
+  .chip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+  .chip.accent { color: #a8ccff; border-color: rgba(78,157,255,.35); background: var(--accent-soft); }
+
+  /* Hero */
+  header { padding: 88px 0 72px; position: relative; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 1.4px;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 1px; background: var(--accent); opacity: .6; }
+
+  h1 {
+    font-size: clamp(34px, 5.2vw, 54px); line-height: 1.18;
+    font-weight: 700; letter-spacing: -1px; margin-bottom: 20px;
+  }
+  h1 em {
+    font-style: normal;
+    background: linear-gradient(100deg, #4e9dff 10%, #3ddc97 90%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .lede { font-size: 16.5px; color: var(--muted); max-width: 680px; margin-bottom: 28px; }
+
+  .keyword-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 32px; }
+  .kw {
+    font-size: 12.5px; padding: 5px 12px; border-radius: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    color: #b9c2d4; font-family: var(--mono);
+  }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 22px; border-radius: 10px; font-size: 14px;
+    text-decoration: none; font-weight: 500; transition: all .22s;
+    border: 1px solid transparent;
+  }
+  .btn-primary { background: var(--accent); color: #04070d; }
+  .btn-primary:hover { background: #6aaeff; transform: translateY(-1px); }
+  .btn-ghost { border-color: var(--border-strong); color: var(--text); background: rgba(255,255,255,.02); }
+  .btn-ghost:hover { border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.05); }
+
+  /* 通用区块 */
+  section { padding: 68px 0; border-top: 1px solid var(--border); }
+  .sec-head { margin-bottom: 38px; }
+  .sec-num {
+    font-family: var(--mono); font-size: 12px; color: var(--dim);
+    letter-spacing: 1px; margin-bottom: 10px;
+  }
+  h2 { font-size: 27px; font-weight: 650; letter-spacing: -.4px; margin-bottom: 10px; }
+  .sec-sub { color: var(--muted); font-size: 14.5px; max-width: 720px; }
+
+  /* 卡片网格 */
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px 22px; transition: border-color .25s, transform .25s;
+  }
+  .card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 9px; }
+  .card p { font-size: 13.5px; color: var(--muted); line-height: 1.65; }
+  .icon-box {
+    width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+    display: grid; place-items: center; font-size: 14px;
+    background: var(--accent-soft); color: var(--accent);
+    font-family: var(--mono); font-weight: 700;
+  }
+  .icon-box.red { background: rgba(255,107,107,.12); color: #ff8585; }
+
+  /* 流程 */
+  .flow { display: flex; flex-direction: column; gap: 14px; }
+  .step {
+    display: grid; grid-template-columns: 56px 1fr; gap: 22px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; position: relative;
+    transition: border-color .25s;
+  }
+  .step:hover { border-color: rgba(78,157,255,.3); }
+  .step-idx {
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    color: transparent; -webkit-text-stroke: 1px rgba(78,157,255,.55);
+    line-height: 1;
+  }
+  .step-body h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .step-body > p { font-size: 13.5px; color: var(--muted); margin-bottom: 14px; }
+
+  /* 终端 / 对话 mock */
+  .mock {
+    background: #07090e; border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; font-family: var(--mono);
+    font-size: 12.3px;
+  }
+  .mock-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+  }
+  .mock-bar i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+  .mock-bar i:nth-child(1) { background: #ff5f57; }
+  .mock-bar i:nth-child(2) { background: #febc2e; }
+  .mock-bar i:nth-child(3) { background: #28c840; }
+  .mock-bar span { margin-left: 8px; color: var(--dim); font-size: 11px; }
+  .mock-body { padding: 14px 16px; line-height: 1.85; color: #c3cbd9; overflow-x: auto; }
+  .mock-body .prompt { color: var(--green); }
+  .mock-body .cmd { color: #c3cbd9; }
+  .mock-body .flag { color: #a8ccff; }
+  .mock-body .cmt { color: #5f6879; }
+  .mock-body .ok { color: var(--green); }
+  .mock-body .warn { color: var(--amber); }
+
+  .opt-list { margin-top: 4px; }
+  .opt { display: flex; gap: 10px; padding: 3px 0; }
+  .opt b { color: var(--accent); font-weight: 500; }
+  .opt .sel { color: var(--text); }
+  .opt .note { color: var(--dim); }
+
+  .confirm-box {
+    margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+    border: 1px dashed rgba(61,220,151,.35); background: var(--green-soft);
+    color: #a9f0d0; font-size: 12.2px;
+  }
+
+  .gate-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .gate {
+    font-family: var(--mono); font-size: 11.5px; padding: 4px 10px;
+    border-radius: 6px; border: 1px solid var(--border-strong); color: var(--muted);
+  }
+  .gate.pass { color: var(--green); border-color: rgba(61,220,151,.35); background: var(--green-soft); }
+  .gate.wait { color: var(--amber); border-color: rgba(242,181,68,.3); background: rgba(242,181,68,.1); }
+  .gate.block { color: #ff8585; border-color: rgba(255,107,107,.3); background: rgba(255,107,107,.1); }
+
+  /* 输出预览 */
+  .out-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 20px; align-items: start; }
+  .txt-preview {
+    background: #07090e; border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  }
+  .txt-head {
+    display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+    border-bottom: 1px solid var(--border); background: rgba(255,255,255,.02);
+    font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+  }
+  .txt-head .tag {
+    margin-left: auto; font-size: 10px; padding: 2px 7px; border-radius: 4px;
+    border: 1px solid var(--border-strong); color: var(--dim);
+  }
+  .txt-body {
+    padding: 16px; font-family: var(--mono); font-size: 12.1px;
+    line-height: 1.95; color: #b8c0d0; overflow-x: auto;
+  }
+  .txt-body .rule { color: #2b3243; }
+  .txt-body .stamp { color: #6b7488; }
+  .txt-body .spk-a { color: #6fb3ff; }
+  .txt-body .spk-b { color: #45dd9d; }
+  .txt-body .meta { color: #8d96ab; }
+  .txt-body .bracket { color: #f2b544; }
+  .txt-body .sec { color: #e9edf5; }
+
+  .spec-list { display: flex; flex-direction: column; gap: 10px; }
+  .spec {
+    display: flex; gap: 14px; padding: 14px 16px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .spec .k {
+    font-family: var(--mono); font-size: 11.5px; color: var(--dim);
+    width: 84px; flex-shrink: 0; padding-top: 2px;
+  }
+  .spec .v { font-size: 13.2px; color: #c6cede; }
+  .spec .v code {
+    font-family: var(--mono); font-size: 12px; background: rgba(78,157,255,.1);
+    color: #a8ccff; padding: 1px 6px; border-radius: 4px;
+  }
+
+  /* 链路 */
+  .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .node {
+    font-family: var(--mono); font-size: 12px; padding: 9px 13px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    color: #b9c2d4;
+  }
+  .node.hl { border-color: rgba(78,157,255,.4); color: #a8ccff; background: var(--accent-soft); }
+  .arrow { color: var(--dim); font-size: 13px; }
+
+  /* 文件树 */
+  .tree {
+    font-family: var(--mono); font-size: 12px; line-height: 1.95;
+    background: #07090e; border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 22px; color: #a8b2c4;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .tree .d { color: #e9edf5; }
+  .tree .c { color: #5f6879; }
+  .tree .s { color: var(--green); }
+  .tree .f { color: #a8ccff; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+
+  /* 页脚 */
+  footer {
+    border-top: 1px solid var(--border); padding: 40px 0 56px;
+    color: var(--dim); font-size: 12.5px;
+  }
+  footer .mono { font-family: var(--mono); font-size: 11.5px; }
+
+  /* 入场动画：默认可见，仅做轻微位移，不依赖 JS */
+  .reveal { opacity: 1; }
+
+  @media (max-width: 860px) {
+    .grid-3 { grid-template-columns: 1fr; }
+    .out-grid, .two-col { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+    header { padding: 56px 0 44px; }
+    section { padding: 52px 0; }
+    .step { grid-template-columns: 1fr; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+
+<nav>
+  <div class="nav-inner">
+    <div class="logo">MT</div>
+    <div class="nav-name">meeting-transcript<span>v1.0.0</span></div>
+    <div class="nav-links">
+      <a href="#why">为什么</a>
+      <a href="#flow">三步流程</a>
+      <a href="#output">输出规范</a>
+      <a href="#tech">实现</a>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="wrap">
+    <div class="eyebrow">WorkBuddy Skill</div>
+    <h1>把腾讯会议录音<br>变成一份<em>能核对原话</em>的文字稿</h1>
+    <p class="lede">
+      说一句「帮我整理一下昨天那场会」，它会先问日期、列出当天全部会议、把参会人摊开给你确认，
+      然后才动手取转写。三步确认，只为不选错那场会。
+    </p>
+
+    <div class="keyword-row">
+      <span class="kw">会议纪要</span>
+      <span class="kw">文字稿</span>
+      <span class="kw">逐字稿</span>
+      <span class="kw">会议记录</span>
+      <span class="kw">转写稿</span>
+      <span class="kw">谁说了什么</span>
+    </div>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#flow">看它怎么工作 →</a>
+      <a class="btn btn-ghost" href="#output">输出效果</a>
+      <span class="chip"><span class="dot"></span>已安装 · 用户级技能</span>
+      <span class="chip accent">.txt 纯文本</span>
+    </div>
+  </div>
+</header>
+
+<section id="why">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-num">01 — 为什么需要它</div>
+      <h2>整理会议记录，坑都在这三处</h2>
+      <p class="sec-sub">会议记录不是「生成一段总结」，而是一次需要可核对的还原。三个最容易翻车的地方，正是这个技能的三个设计约束。</p>
+    </div>
+
+    <div class="grid-3">
+      <div class="card reveal">
+        <h3><span class="icon-box red">!</span>同一天五六场会</h3>
+        <p>主题全叫「XXX 的快速会议」，时间还挨得很近。只看标题选，十分钟之差就可能整篇作废。所以它坚持让你用参会人做最后一道校验。</p>
+      </div>
+      <div class="card reveal">
+        <h3><span class="icon-box red">!</span>AI 摘要在冒充原话</h3>
+        <p>纪要类内容是模型加工过的概括，细节会被抹平——具体数字、某人的某句话、口头承诺，都可能消失。要「原话」就必须走录制转写，不是纪要。</p>
+      </div>
+      <div class="card reveal">
+        <h3><span class="icon-box red">!</span>转写稿读不下去</h3>
+        <p>原始 ASR 是 147 个碎片段落、中英混杂、没有标点层级。不按发言人合并、不按话题分段，等于把一堆生料丢给你。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="flow">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-num">02 — 交互流程</div>
+      <h2>三次确认，一步都不许跳过</h2>
+      <p class="sec-sub">每一步都必须由你的下一条输入推进。不确定就停下来问，不猜、不默认、不代选。</p>
+    </div>
+
+    <div class="flow">
+
+      <div class="step reveal">
+        <div class="step-idx">01</div>
+        <div class="step-body">
+          <h3>反问会议日期</h3>
+          <p>不假设「大概是今天」。给四个选项让你点，比让你敲日期快。你如果一开口就说了日期，它跳过这一步直接复述确认。</p>
+          <div class="mock">
+            <div class="mock-bar"><i></i><i></i><i></i><span>确认 · 日期</span></div>
+            <div class="mock-body">
+              <div>要整理哪一天的会议？</div>
+              <div class="opt-list">
+                <div class="opt"><b>1</b><span class="sel">今天（10-30）</span></div>
+                <div class="opt"><b>2</b><span class="sel">昨天（10-29）</span></div>
+                <div class="opt"><b>3</b><span class="sel">前天（10-28）</span></div>
+                <div class="opt"><b>4</b><span class="note">其他日期</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step reveal">
+        <div class="step-idx">02</div>
+        <div class="step-body">
+          <h3>列出当天全部会议，你来挑时间段</h3>
+          <p>按接口顺序原样呈现，一场都不隐藏——包括没有录制的。只有一场也照样问你，不替你选。</p>
+          <div class="mock">
+            <div class="mock-bar"><i></i><i></i><i></i><span>tmeet meeting list-ended</span></div>
+            <div class="mock-body">
+              <div><span class="prompt">$</span> <span class="cmd">tmeet meeting list-ended</span></div>
+              <div><span class="flag">--start</span> 2026-10-28T00:00:00+08:00 <span class="flag">--end</span> 2026-10-28T23:59:59+08:00</div>
+              <div class="cmt">→ 找到 5 场已结束会议</div>
+              <div>&nbsp;</div>
+              <div><span class="ok">1</span> 20:12–21:12（02:05）｜快速会议｜902884801｜有转写</div>
+              <div><span class="ok">2</span> 20:19–21:19（00:10）｜快速会议｜342695628｜有转写</div>
+              <div><span class="ok">3</span> 21:15–22:15（00:13）｜快速会议｜371563661｜有转写</div>
+              <div><span class="ok">4</span> 21:19–22:19（00:50）｜快速会议｜369689563｜有转写</div>
+              <div><span class="ok">5</span> 22:28–23:28（43:41）｜个人会议室｜3913761200｜有转写</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step reveal">
+        <div class="step-idx">03</div>
+        <div class="step-body">
+          <h3>摊开参会人，请你确认这场对不对</h3>
+          <p>这是防选错的最后一道闸。姓名、角色、入离会时间全给你，并点明谁是主持人。你说「确认」之前，它不会取一个字、不会建一个文件。</p>
+          <div class="mock">
+            <div class="mock-bar"><i></i><i></i><i></i><span>tmeet report participants</span></div>
+            <div class="mock-body">
+              <div>会议：断桥烟雨的个人会议室（会议号 3913761200）</div>
+              <div>时间：2026-10-28 22:28:59 — 23:28:59</div>
+              <div>参会人（2 人）：</div>
+              <div>· 断桥烟雨（创建者+主持人） 22:28 入会 — 23:12 离会</div>
+              <div>· Jakub（普通成员） 22:33 入会 — 23:12 离会</div>
+              <div class="confirm-box">确认是这一场吗？确认后开始提取转写。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step reveal">
+        <div class="step-idx">04</div>
+        <div class="step-body">
+          <h3>过状态与权限两道闸，再取转写</h3>
+          <p>转码没完成就等，没有权限就先申请，绝不用别的东西凑数。取到后按发言人合并段落，并回报统计让你核对是否取全。</p>
+          <div class="gate-row">
+            <span class="gate pass">state 转码完成 ✓</span>
+            <span class="gate pass">permission can_view ✓</span>
+            <span class="gate wait">录制中 / 转码中 → 等待</span>
+            <span class="gate block">closed / deleted → 不可申请</span>
+          </div>
+          <div class="mock" style="margin-top:14px">
+            <div class="mock-bar"><i></i><i></i><i></i><span>build_transcript.py</span></div>
+            <div class="mock-body">
+              <div><span class="prompt">$</span> <span class="cmd">tmeet record transcript-get</span> <span class="flag">--record-file-id</span> 2115…7905 <span style="color:#5f6879">&gt;</span> t.json</div>
+              <div><span class="prompt">$</span> <span class="cmd">python3 scripts/build_transcript.py</span> t.json</div>
+              <div class="cmt">段落数 147（合并后 131 段）｜句子数 229</div>
+              <div class="cmt">断桥烟雨 76 段、Jakub 71 段｜时间范围 04:15–43:38</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="output">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-num">03 — 输出规范</div>
+      <h2>一份能直接拿去核对的 txt</h2>
+      <p class="sec-sub">纯文本、UTF-8、无 Markdown 记号。原话一个字不改，识别错的地方只标注不篡改。</p>
+    </div>
+
+    <div class="out-grid">
+      <div class="txt-preview reveal">
+        <div class="txt-head">
+          <span>2026-10-28 22-28_断桥烟雨.txt</span>
+          <span class="tag">UTF-8 · 25.6 KB</span>
+        </div>
+        <div class="txt-body">
+<div class="rule">============================================================</div>
+<div class="sec">会议文字稿</div>
+<div class="rule">============================================================</div>
+<div>&nbsp;</div>
+<div><span class="meta">【会议主题】</span>断桥烟雨的个人会议室</div>
+<div><span class="meta">【会议号】</span>  3913761200</div>
+<div><span class="meta">【会议时间】</span>2026-10-28 22:28:59 — 23:28:59</div>
+<div><span class="meta">【录制时长】</span>43 分 41 秒（有效转写 00:00–43:38）</div>
+<div><span class="meta">【参会人】</span>  断桥烟雨、Jakub</div>
+<div>&nbsp;</div>
+<div class="rule">------------------------------------------------------------</div>
+<div class="sec">一、开场与设备调试（04:15–07:04）</div>
+<div class="rule">------------------------------------------------------------</div>
+<div>&nbsp;</div>
+<div><span class="stamp">[04:15]</span> <span class="spk-a">断桥烟雨</span>：Hi, can you hear me?</div>
+<div>&nbsp;</div>
+<div><span class="stamp">[04:21]</span> <span class="spk-a">断桥烟雨</span>：<span class="bracket">〔湖南，湖南。〕</span>（ASR 识别噪声）</div>
+<div>&nbsp;</div>
+<div><span class="stamp">[06:01]</span> <span class="spk-b">Jakub</span>：Do you hear me now?</div>
+<div>&nbsp;</div>
+<div><span class="stamp">[06:03]</span> <span class="spk-a">断桥烟雨</span>：Yes. Ok.</div>
+<div>&nbsp;</div>
+<div><span class="stamp">[12:06]</span> <span class="spk-b">Jakub</span>：Okay. I'm from Poland, but I am right</div>
+<div>       now on study exchange in Portugal, So that's</div>
+<div>       why we talk, I think…</div>
+        </div>
+      </div>
+
+      <div class="spec-list reveal">
+        <div class="spec">
+          <div class="k">命名</div>
+          <div class="v"><code>YYYY-MM-DD HH-MM_主持人.txt</code><br>例：<code>2026-10-28 22-28_断桥烟雨.txt</code>（时分之间的冒号写作 <code>-</code>）</div>
+        </div>
+        <div class="spec">
+          <div class="k">主持人</div>
+          <div class="v">取参会人里角色含「主持人」的那位；没有就退用「创建者」，再退用第一位发言人</div>
+        </div>
+        <div class="spec">
+          <div class="k">结构</div>
+          <div class="v">会议信息头 → 5 条阅读说明 → 6–8 个话题章节 → 内容脉络速览 → 整理说明</div>
+        </div>
+        <div class="spec">
+          <div class="k">发言段</div>
+          <div class="v"><code>[mm:ss] 姓名：原话</code>，同人连贯发言合并成段，76 字符折行，续行缩进对齐</div>
+        </div>
+        <div class="spec">
+          <div class="k">原话原则</div>
+          <div class="v">口语重复、语法错误、断句中断一律保留；ASR 明显误识别用 <code>〔〕</code> 标注，不猜测补写</div>
+        </div>
+        <div class="spec">
+          <div class="k">交付自检</div>
+          <div class="v">核对段落数与脚本统计一致、时间戳无跳段、空档已注明、正文无 <code>#</code> <code>**</code> <code>|</code> 残留</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tech">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-num">04 — 实现</div>
+      <h2>底层就是几条命令，加一个合并脚本</h2>
+      <p class="sec-sub">不依赖任何自建服务。全部走腾讯会议 CLI，脚本只负责把碎片段落拼回人话。</p>
+    </div>
+
+    <div class="chain reveal" style="margin-bottom:26px">
+      <span class="node hl">meeting list-ended</span>
+      <span class="arrow">→</span>
+      <span class="node hl">report participants</span>
+      <span class="arrow">→</span>
+      <span class="node hl">record transcript-get</span>
+      <span class="arrow">→</span>
+      <span class="node">build_transcript.py</span>
+      <span class="arrow">→</span>
+      <span class="node">.txt</span>
+    </div>
+
+    <div class="two-col">
+      <div class="reveal">
+        <div class="tree">
+<span class="d">meeting-transcript/</span>
+├── <span class="f">SKILL.md</span>                 <span class="c"># 流程 / 触发 / 确认铁律</span>
+├── <span class="d">references/</span>
+│   └── <span class="f">output-format.md</span>    <span class="c"># txt 模板 + 自检清单</span>
+└── <span class="d">scripts/</span>
+    └── <span class="s">build_transcript.py</span>  <span class="c"># 转写 JSON → 合并段落</span>
+        </div>
+      </div>
+
+      <div class="reveal">
+        <div class="card" style="padding:22px">
+          <h3 style="margin-bottom:12px">脚本做的一件小事</h3>
+          <p style="margin-bottom:14px">
+            ASR 返回的是「段落 → 句子 → 词」三层嵌套，句子文本只藏在 <code style="font-family:var(--mono);font-size:12px;color:#a8ccff">words[].text</code> 里，
+            没有 <code style="font-family:var(--mono);font-size:12px;color:#a8ccff">sentence.text</code>。脚本负责拼句、按发言人合并连续段落，
+            并回报统计用于核对。
+          </p>
+          <p>
+            合并后把 147 个碎片压缩成 131 个可读段落，人不用再在一句话里猜是谁在说。
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px;width:100%">
+    <div>meeting-transcript · 腾讯会议文字稿整理技能<span style="color:#39404f"> ｜ </span>基于腾讯会议 CLI，需登录授权后使用</div>
+    <div class="mono">v1.0.0 · SKILL.md 12.7 KB</div>
+  </div>
+</footer>
+
+<script>
+  // 滚动进度
+  const bar = document.getElementById('progress');
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    const p = h.scrollTop / (h.scrollHeight - h.clientHeight) * 100;
+    bar.style.width = p + '%';
+  }, { passive: true });
+</script>
+
+</body>
+</html>
